@@ -1,0 +1,14 @@
+{
+  "name": "koaserver",
+  "version": "1.0.0",
+  "description": "koa后端服务",
+  "scripts": {
+    "dev": "nodemon ./bin/www.js"
+  },
+  "dependencies": {
+    "ejs": "^3.1.10",
+    "koa": "^2.15.3",
+    "koa-router": "^6.2.0",
+    "koa-views": "^8.1.0"
+  }
+}
