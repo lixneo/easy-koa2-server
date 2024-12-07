@@ -8,7 +8,10 @@
   "dependencies": {
     "ejs": "^3.1.10",
     "koa": "^2.15.3",
+    "koa-generic-session": "^2.3.1",
+    "koa-redis": "^4.0.1",
     "koa-router": "^6.2.0",
-    "koa-views": "^8.1.0"
+    "koa-views": "^8.1.0",
+    "puppeteer": "^23.10.1"
   }
 }
