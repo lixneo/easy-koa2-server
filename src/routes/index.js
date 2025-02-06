@@ -1,8 +1,8 @@
 const router = require('koa-router')();
 const fs = require('fs').promises;
 const path = require('path');
-const axios = require('axios');  // 导入 axios
-const { getCurrentTime, isOver12Hours, deepClone } = require('../libs/utils');
+const axios = require('axios');
+const { getCurrentDate } = require('../libs/utils');
 
 router.get('/', async (ctx, next) => {
   await ctx.render('index', {
@@ -10,71 +10,123 @@ router.get('/', async (ctx, next) => {
   })
 })
 
-router.get('/bilibili-interface/ranking', async (ctx, next) => {
-  const filePath = path.join(__dirname, '../data/ranking.json');
-
+router.get('/save/ranking', async (ctx, next) => {
   try {
-    // 读取文件内容
-    const data = await fs.readFile(filePath, 'utf-8');
-
-    // 解析文件内容为 JSON 对象
-    const jsonData = JSON.parse(data);
-
-    let formattedDate = getCurrentTime();
-    if (isOver12Hours(jsonData.time, formattedDate)) {
-      console.log('超过12小时');
-
-      const url = 'https://api.bilibili.com/x/web-interface/ranking/v2'; // 排行榜接口
-      try {
-        // 使用 axios 发起 GET 请求
-        const response = await axios.get(url);
-
-        let jsonData = deepClone({
-          time: getCurrentTime(),
-          list: response.data.data.list
-        });
-
-        // 清空文件并写入新内容
-        fs.writeFile(filePath, JSON.stringify(jsonData, null, 2), (err) => {
-          if (err) {
-            console.error('Error writing to file:', err);
-          } else {
-            console.log('File content has been replaced!');
-          }
-        });
-
-        // 将请求的响应内容返回给客户端
-        ctx.body = {
-          success: true,
-          data: jsonData
-        };
-      } catch (err) {
-        // 如果请求失败，返回错误信息
-        ctx.status = 500;
-        ctx.body = {
-          success: false,
-          message: 'Failed to fetch data',
-          error: err.message
-        };
-      }
-    } else {
-      console.log('没有超过12小时');
-      // 将文件内容作为响应返回
-      ctx.body = {
-        success: true,
-        data: jsonData
-      };
+    const filePath = path.join(__dirname, `../data/${getCurrentDate()}.json`);
+    const url = 'https://api.bilibili.com/x/web-interface/ranking/v2'; // 官方排行榜接口
+    try {
+      const response = await axios.get(url);
+      fs.writeFile(filePath, JSON.stringify({
+        data: response.data.data.list
+      }, null, 2), (err) => {
+        if (err) {
+          console.error('Error writing to file:', err);
+        } else {
+          console.log('File content has been replaced!');
+        }
+      });
+    } catch (err) {
+      console.log("请求官方接口失败");
     }
 
-  } catch (err) {
-    // 错误处理
-    ctx.status = 500;
     ctx.body = {
-      success: false,
-      message: 'Failed to read the file',
-      error: err.message
+      code: 0,
+      msg: "保存成功"
+    };
+
+  } catch (err) {
+    ctx.body = {
+      code: 1,
+      msg: '保存失败',
     };
   }
 })
+
+// 获取各分区上榜次数
+router.get('/ranking/counts', async (ctx, next) => {
+  try {
+    // 定义数据目录的路径
+    const dataDir = path.join(__dirname, '../data');
+    // 读取数据目录中的所有文件
+    const files = await fs.readdir(dataDir);
+    // 过滤出所有的 JSON 文件
+    const jsonFiles = files.filter(file => file.endsWith('.json'));
+
+    // 初始化一个对象用于存储各分区的计数
+    const counts = {};
+
+    // 读取并处理每个 JSON 文件
+    for (const file of jsonFiles) {
+      // 构建每个文件的完整路径
+      const filePath = path.join(dataDir, file);
+      // 读取文件内容
+      const fileContent = await fs.readFile(filePath, 'utf-8');
+      // 解析 JSON 数据
+      const jsonData = JSON.parse(fileContent);
+
+      // 统计每个 tname 的出现次数
+      jsonData.data.forEach(item => {
+        const tname = item.tname;
+        counts[tname] = (counts[tname] || 0) + 1; // 如果 tname 已存在，则加 1，否则初始化为 1
+      });
+    }
+
+    // 将结果返回给客户端
+    ctx.body = {
+      code: 0,
+      data: counts
+    };
+
+  } catch (err) {
+    ctx.body = {
+      code: 1,
+      msg: '保存失败',
+    };
+  }
+})
+
+// 获取各分区总播放量
+router.get('/ranking/views', async (ctx, next) => {
+  try {
+    // 定义数据目录的路径
+    const dataDir = path.join(__dirname, '../data');
+    // 读取数据目录中的所有文件
+    const files = await fs.readdir(dataDir);
+    // 过滤出所有的 JSON 文件
+    const jsonFiles = files.filter(file => file.endsWith('.json'));
+
+    // 初始化一个对象用于统计总播放量
+    const views = {};
+
+    // 读取并处理每个 JSON 文件
+    for (const file of jsonFiles) {
+      // 构建每个文件的完整路径
+      const filePath = path.join(dataDir, file);
+      // 读取文件内容
+      const fileContent = await fs.readFile(filePath, 'utf-8');
+      // 解析 JSON 数据
+      const jsonData = JSON.parse(fileContent);
+
+      // 统计每个 tname 的出现次数
+      jsonData.data.forEach(item => {
+        const tname = item.tname;
+        const viewCount = item.stat.view;
+        views[tname] = (views[tname] || 0) + viewCount; // 统计总播放量
+      });
+    }
+
+    // 将结果返回给客户端
+    ctx.body = {
+      code: 0,
+      data: views
+    };
+
+  } catch (err) {
+    ctx.body = {
+      code: 1,
+      msg: '保存失败',
+    };
+  }
+});
 
 module.exports = router
