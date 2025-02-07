@@ -99,11 +99,13 @@ router.get('/ranking/counts', async (ctx, next) => {
         counts[tname] = (counts[tname] || 0) + 1; // 如果 tname 已存在，则加 1，否则初始化为 1
       });
     }
+    
+    const sortedCounts = Object.entries(counts).sort((a, b) => b[1] - a[1]);
 
     // 将结果返回给客户端
     ctx.body = {
       code: 0,
-      data: counts
+      data: sortedCounts
     };
 
   } catch (err) {
@@ -143,11 +145,12 @@ router.get('/ranking/views', async (ctx, next) => {
         views[tname] = (views[tname] || 0) + viewCount; // 统计总播放量
       });
     }
+    const sortedViews = Object.entries(views).sort((a, b) => b[1] - a[1]);
 
     // 将结果返回给客户端
     ctx.body = {
       code: 0,
-      data: views
+      data: sortedViews
     };
 
   } catch (err) {
@@ -189,11 +192,14 @@ router.get('/ranking/danmakus', async (ctx, next) => {
       });
     }
 
+    const sortedDanmakus = Object.entries(danmakus).sort((a, b) => b[1] - a[1]);
+
     // 将结果返回给客户端
     ctx.body = {
       code: 0,
-      data: danmakus
+      data: sortedDanmakus
     };
+
   } catch (err) {
     console.log(err);
 
@@ -294,9 +300,9 @@ router.get('/ranking/three-likes', async (ctx, next) => {
       jsonData.data.forEach(item => {
         const tname = item.tname;
 
-        // Initialize the interact[tname] object if it doesn't exist
-        if (!interact[tname]) {
-          interact[tname] = {
+        // Initialize the threeLikes[tname] object if it doesn't exist
+        if (!threeLikes[tname]) {
+          threeLikes[tname] = {
             likes: 0,
             coins: 0,
             favorites: 0,
