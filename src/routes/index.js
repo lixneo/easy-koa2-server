@@ -13,7 +13,7 @@ router.get('/', async (ctx, next) => {
 })
 
 // 现存数据日期
-router.get('/save/date', async (ctx, next) => {
+router.get('/ranking/date', async (ctx, next) => {
   try {
     // 读取数据目录中的所有文件
     const files = await fs.readdir(dataDir);
@@ -99,7 +99,7 @@ router.get('/ranking/counts', async (ctx, next) => {
         counts[tname] = (counts[tname] || 0) + 1; // 如果 tname 已存在，则加 1，否则初始化为 1
       });
     }
-    
+
     const sortedCounts = Object.entries(counts).sort((a, b) => b[1] - a[1]);
 
     // 将结果返回给客户端
@@ -260,11 +260,13 @@ router.get('/ranking/interact', async (ctx, next) => {
       });
     }
 
-
+    const sortedDanmakus = Object.entries(interact).sort((a, b) =>
+      Object.values(b[1]).reduce((acc, cur) => acc + cur, 0) -
+      Object.values(a[1]).reduce((acc, cur) => acc + cur, 0));
     // 将结果返回给客户端
     ctx.body = {
       code: 0,
-      data: interact
+      data: sortedDanmakus
     };
   } catch (err) {
     console.log(err);
@@ -306,25 +308,30 @@ router.get('/ranking/three-likes', async (ctx, next) => {
             likes: 0,
             coins: 0,
             favorites: 0,
+            views: 0,
           };
         }
 
         const likeCount = item.stat.like; // 点赞数 
         const coinCount = item.stat.coin; // 投币数
         const favoriteCount = item.stat.favorite; // 收藏数
-        const view = item.stat.view; // 收藏数
+        const viewCount = item.stat.view; // 收藏数
 
         threeLikes[tname].likes += likeCount; // 统计总点赞数
         threeLikes[tname].coins += coinCount; // 统计总投币数
         threeLikes[tname].favorites += favoriteCount; // 统计总收藏数
-        threeLikes[tname].view += view; // 统计总播放量
+        threeLikes[tname].views += viewCount; // 统计总播放量
       });
     }
+
+    const sortedThreeLikes = Object.entries(threeLikes).sort((a, b) =>
+      Object.values(b[1]).reduce((acc, cur) => acc + cur, 0) -
+      Object.values(a[1]).reduce((acc, cur) => acc + cur, 0));
 
     // 将结果返回给客户端
     ctx.body = {
       code: 0,
-      data: threeLikes
+      data: sortedThreeLikes
     };
   } catch (err) {
     console.log(err);
@@ -367,11 +374,12 @@ router.get('/ranking/days-views', async (ctx, next) => {
       });
     }
 
+    const sortedFiveDaysViews = Object.entries(fiveDaysViews);
 
     // 将结果返回给客户端
     ctx.body = {
       code: 0,
-      data: fiveDaysViews
+      data: sortedFiveDaysViews
     };
   } catch (err) {
     console.log(err);
@@ -483,14 +491,14 @@ router.get('/ranking/wordcloud', async (ctx, next) => {
   }
 });
 
-// 8、top5 接口
+// 9、top5 接口
 router.get('/ranking/top5up', async (ctx, next) => {
   try {
     // 读取数据目录中的所有文件
     const files = await fs.readdir(dataDir);
 
     // 初始化一个对象用于存储各分区的计数
-    const top5 = {}, upCounts = {};
+    const upCounts = {};
 
     // 读取并处理每个 JSON 文件
     for (const file of files) {
@@ -511,19 +519,13 @@ router.get('/ranking/top5up', async (ctx, next) => {
       });
     }
 
-    Object.values(upCounts).sort((a, b) => b.counts - a.counts).slice(0, 5).forEach(item => {
-      top5[item.name] = {
-        // follower: item.follower,
-        counts: item.counts
-      }
-    });
-
+    const sortedTop5 = Object.values(upCounts).sort((a, b) => b.counts - a.counts).slice(0, 5);
 
     // 将结果返回给客户端 
 
     ctx.body = {
       code: 0,
-      data: top5
+      data: sortedTop5
     };
   } catch (err) {
     console.log(err);
@@ -534,5 +536,47 @@ router.get('/ranking/top5up', async (ctx, next) => {
     };
   }
 })
+
+// 新增接口：获取所有接口数据
+router.get('/fetch/all', async (ctx, next) => {
+  try {
+    // 依次请求各个接口的数据
+    const [datesResponse, rankingCountsResponse, rankingViewsResponse, rankingDanmakusResponse, rankingInteractResponse, rankingThreeLikesResponse, rankingDaysViewsResponse, rankingUpCountsResponse, rankingWordCloudResponse, rankingTop5UpResponse] = await Promise.all([
+      axios.get(`${ctx.origin}/ranking/date`),
+      axios.get(`${ctx.origin}/ranking/counts`),
+      axios.get(`${ctx.origin}/ranking/views`),
+      axios.get(`${ctx.origin}/ranking/danmakus`),
+      axios.get(`${ctx.origin}/ranking/interact`),
+      axios.get(`${ctx.origin}/ranking/three-likes`),
+      axios.get(`${ctx.origin}/ranking/days-views`),
+      axios.get(`${ctx.origin}/ranking/up-counts`),
+      axios.get(`${ctx.origin}/ranking/wordcloud`),
+      axios.get(`${ctx.origin}/ranking/top5up`)
+    ]);
+
+    // 将所有接口的数据整合
+    ctx.body = {
+      code: 0,
+      data: {
+        dates: datesResponse.data,
+        rankingCounts: rankingCountsResponse.data,
+        rankingViews: rankingViewsResponse.data,
+        rankingDanmakus: rankingDanmakusResponse.data,
+        rankingInteract: rankingInteractResponse.data,
+        rankingThreeLikes: rankingThreeLikesResponse.data,
+        rankingDaysViews: rankingDaysViewsResponse.data,
+        rankingUpCounts: rankingUpCountsResponse.data,
+        rankingWordCloud: rankingWordCloudResponse.data,
+        rankingTop5Up: rankingTop5UpResponse.data,
+      }
+    };
+  } catch (err) {
+    console.log(err);
+    ctx.body = {
+      code: 1,
+      msg: '获取所有数据失败',
+    };
+  }
+});
 
 module.exports = router
